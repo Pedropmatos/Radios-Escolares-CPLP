@@ -1,24 +1,70 @@
-import React, { useState } from 'react';
-import { Search, Globe, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Globe, ChevronUp, WifiOff } from 'lucide-react';
+import { supabase, RadioStation } from '../lib/supabase';
+// import RadioCard from './RadioCard';
+// Update the import path below if RadioCard is in a different folder, e.g.:
+// import RadioCard from '../someOtherFolder/RadioCard';
+import RadioCard from './RadioCard'; // Make sure RadioCard.tsx exists in this folder
+// Make sure RadioPlayer.tsx exists in the same folder, or update the path if needed
+import RadioPlayer from './RadioPlayer';
 
 const countries = [
   { id: 'all', name: 'Todos', icon: Globe },
-  { id: 'angola', name: 'Angola', flagUrl: 'https://flagcdn.com/w320/ao.png' },
-  { id: 'brasil', name: 'Brasil', flagUrl: 'https://flagcdn.com/w320/br.png' },
-  { id: 'cabo-verde', name: 'Cabo Verde', flagUrl: 'https://flagcdn.com/w320/cv.png' },
-  { id: 'guine-bissau', name: 'Guiné-Bissau', flagUrl: 'https://flagcdn.com/w320/gw.png' },
-  { id: 'mocambique', name: 'Moçambique', flagUrl: 'https://flagcdn.com/w320/mz.png' },
-  { id: 'portugal', name: 'Portugal', flagUrl: 'https://flagcdn.com/w320/pt.png' },
-  { id: 'sao-tome', name: 'São Tomé e Príncipe', flagUrl: 'https://flagcdn.com/w320/st.png' },
-  { id: 'timor-leste', name: 'Timor-Leste', flagUrl: 'https://flagcdn.com/w320/tl.png' },
+  { id: 'Angola', name: 'Angola', flagUrl: 'https://flagcdn.com/w320/ao.png' },
+  { id: 'Brasil', name: 'Brasil', flagUrl: 'https://flagcdn.com/w320/br.png' },
+  { id: 'Cabo Verde', name: 'Cabo Verde', flagUrl: 'https://flagcdn.com/w320/cv.png' },
+  { id: 'Guiné-Bissau', name: 'Guiné-Bissau', flagUrl: 'https://flagcdn.com/w320/gw.png' },
+  { id: 'Moçambique', name: 'Moçambique', flagUrl: 'https://flagcdn.com/w320/mz.png' },
+  { id: 'Portugal', name: 'Portugal', flagUrl: 'https://flagcdn.com/w320/pt.png' },
+  { id: 'São Tomé e Príncipe', name: 'São Tomé e Príncipe', flagUrl: 'https://flagcdn.com/w320/st.png' },
+  { id: 'Timor-Leste', name: 'Timor-Leste', flagUrl: 'https://flagcdn.com/w320/tl.png' },
 ];
 
 const HomePage: React.FC = () => {
   const [selectedCountry, setSelectedCountry] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [radioStations, setRadioStations] = useState<RadioStation[]>([]);
+  const [filteredRadioStations, setFilteredRadioStations] = useState<RadioStation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentStation, setCurrentStation] = useState<RadioStation | null>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
+    const fetchRadios = async () => {
+      setLoading(true);
+      setError(null);
+      const { data, error } = await supabase.from('radios').select('*');
+      if (error) {
+        setError('Não foi possível carregar as rádios.');
+        console.error(error);
+      } else {
+        setRadioStations(data);
+      }
+      setLoading(false);
+    };
+    fetchRadios();
+  }, []);
+
+  useEffect(() => {
+    let filtered = radioStations;
+
+    if (selectedCountry !== 'all') {
+      filtered = filtered.filter(station => station.country === selectedCountry);
+    }
+
+    if (searchTerm) {
+      const lowerCaseSearchTerm = searchTerm.toLowerCase();
+      filtered = filtered.filter(station =>
+        station.station_name.toLowerCase().includes(lowerCaseSearchTerm) ||
+        station.city.toLowerCase().includes(lowerCaseSearchTerm)
+      );
+    }
+
+    setFilteredRadioStations(filtered);
+  }, [radioStations, selectedCountry, searchTerm]);
+
+  useEffect(() => {
     const handleScroll = () => {
       setShowScrollButton(window.scrollY > 200);
     };
@@ -53,8 +99,8 @@ const HomePage: React.FC = () => {
                 {country.icon ? (
                   <country.icon className="w-8 h-8 text-blue-600" />
                 ) : country.flagUrl ? (
-                  <img 
-                    src={country.flagUrl} 
+                  <img
+                    src={country.flagUrl}
                     alt={`Bandeira de ${country.name}`}
                     className="w-12 h-8 object-cover rounded-sm shadow-sm"
                   />
@@ -91,36 +137,51 @@ const HomePage: React.FC = () => {
               className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500"
             />
           </div>
-
-          {/* Search Button */}
-          <button className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2">
-            <span>Pesquisar</span>
-          </button>
         </div>
       </section>
 
       {/* Radio Results Section */}
       <section>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="bg-white p-6 rounded-lg shadow-md border border-gray-200 animate-pulse">
+                <div className="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
+                <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+                <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className="text-center py-12 text-red-500">
+            <WifiOff className="h-16 w-16 mx-auto mb-4" />
+            <p>{error}</p>
+          </div>
+        ) : filteredRadioStations.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredRadioStations.map(station => (
+              <RadioCard key={station.id} station={station} onPlay={setCurrentStation} />
+            ))}
+          </div>
+        ) : (
           <div className="text-center py-12">
             <div className="text-gray-400 mb-4">
               <Globe className="h-16 w-16 mx-auto" />
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {selectedCountry === 'all' 
-                ? 'Todas as Rádios Escolares'
-                : `Rádios Escolares - ${countries.find(c => c.id === selectedCountry)?.name}`
-              }
+              Nenhuma rádio encontrada
             </h3>
             <p className="text-gray-600">
-              {searchTerm 
-                ? `Resultados para "${searchTerm}"`
-                : 'Nenhuma rádio encontrada. Seja o primeiro a adicionar uma rádio escolar!'
+              {searchTerm
+                ? `Nenhum resultado para "${searchTerm}"`
+                : 'Seja o primeiro a adicionar uma rádio escolar!'
               }
             </p>
           </div>
-        </div>
+        )}
       </section>
+
+      {currentStation && <RadioPlayer station={currentStation} onClose={() => setCurrentStation(null)} />}
 
       {/* Scroll to Top Button */}
       {showScrollButton && (
